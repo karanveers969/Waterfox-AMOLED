@@ -1,4 +1,4 @@
-name: AMOLED Patch Build
+name: build-and-release
 
 on:
   workflow_dispatch:
@@ -8,27 +8,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout this repo
-      uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v4
 
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y wget jq
+        sudo apt update
+        sudo apt install -y wget unzip zip apksigner
 
     - name: Fetch latest release info from Waterfox
       run: |
         wget -q https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest -O release.json
-        echo "RELEASE_TAG=$(jq -r .tag_name release.json)" >> $GITHUB_ENV
-        echo "RELEASE_NAME=$(jq -r .name release.json)" >> $GITHUB_ENV
-        echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
-        jq -r .body release.json >> $GITHUB_ENV
-        echo "EOF" >> $GITHUB_ENV
+        RELEASE_TAG=$(jq -r '.tag_name' release.json)
+        echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
 
     - name: Check if already built
       run: |
         if gh release view "$RELEASE_TAG" &>/dev/null; then
-          echo "Already released. Exiting."
+          echo "Release $RELEASE_TAG already exists. Skipping."
           exit 0
         fi
       env:
@@ -37,48 +34,32 @@ jobs:
     - name: Download APKs
       run: |
         mkdir -p apks
-        wget -O apks/armeabi.apk "https://github.com/BrowserWorks/waterfox-android/releases/download/${RELEASE_TAG}/Waterfox-Android-${RELEASE_TAG}-armeabi-v7a.apk"
-        wget -O apks/arm64.apk "https://github.com/BrowserWorks/waterfox-android/releases/download/${RELEASE_TAG}/Waterfox-Android-${RELEASE_TAG}-arm64-v8a.apk"
+        wget -O apks/armeabi.apk "https://github.com/BrowserWorks/waterfox-android/releases/download/${{ env.RELEASE_TAG }}/waterfox-${{ env.RELEASE_TAG }}-armeabi-v7a-release.apk"
+        wget -O apks/arm64.apk   "https://github.com/BrowserWorks/waterfox-android/releases/download/${{ env.RELEASE_TAG }}/waterfox-${{ env.RELEASE_TAG }}-arm64-v8a-release.apk"
 
     - name: Patch armeabi-v7a
       run: |
-        chmod +x build.sh
-        ARCH=armeabi-v7a APK_NAME=apks/armeabi.apk PATCHED_APK=armeabi-patched.apk ./build.sh
+        bash build.sh apks/armeabi.apk patched-armeabi.apk
 
-    - name: Sign armeabi-patched.apk
+    - name: Sign armeabi-v7a APK
       run: |
-        echo "${{ secrets.KEYSTORE }}" | base64 -d > keystore.jks
-        apksigner sign --ks keystore.jks --ks-pass pass:${{ secrets.KEYSTORE_PASSPHRASE }} --out armeabi-patched-signed.apk armeabi-patched.apk
+        apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out signed-armeabi.apk patched-armeabi.apk
 
     - name: Patch arm64-v8a
       run: |
-        chmod +x build.sh
-        ARCH=arm64-v8a APK_NAME=apks/arm64.apk PATCHED_APK=arm64-patched.apk ./build.sh
+        bash build.sh apks/arm64.apk patched-arm64.apk
 
-    - name: Sign arm64-patched.apk
+    - name: Sign arm64-v8a APK
       run: |
-        apksigner sign --ks keystore.jks --ks-pass pass:${{ secrets.KEYSTORE_PASSPHRASE }} --out arm64-patched-signed.apk arm64-patched.apk
+        apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out signed-arm64.apk patched-arm64.apk
 
-    - name: Update release.txt
-      run: |
-        echo "${RELEASE_BODY}" > release.txt
-
-    - name: Commit release.txt update
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add release.txt
-        git commit -m "Update release.txt for $RELEASE_TAG"
-        git push
-
-    - name: Upload to GitHub Release
-      uses: softprops/action-gh-release@v1
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ env.RELEASE_TAG }}
-        name: ${{ env.RELEASE_NAME }}
-        body_path: release.txt
+        name: AMOLED Waterfox ${{ env.RELEASE_TAG }}
+        body: |
+          Auto-generated AMOLED-patched builds for Waterfox Android ${{ env.RELEASE_TAG }}
         files: |
-          arm64-patched-signed.apk
-          armeabi-patched-signed.apk
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          signed-armeabi.apk
+          signed-arm64.apk
