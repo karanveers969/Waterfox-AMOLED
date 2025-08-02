@@ -2,82 +2,83 @@ name: AMOLED Patch Build
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 5 * * *'  # Runs daily at 5:00 AM IST (11:30 PM UTC)
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout this repo
-        uses: actions/checkout@v4
+    - name: Checkout this repo
+      uses: actions/checkout@v3
 
-      - name: Set up dependencies
-  run: |
-    sudo apt-get update
-    sudo apt-get install -y wget unzip openjdk-17-jdk
-    wget https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O cmdline-tools.zip
-    unzip -q cmdline-tools.zip -d cmdline-tools
-    mkdir -p ${HOME}/android-sdk/cmdline-tools
-    mv cmdline-tools ${HOME}/android-sdk/cmdline-tools/latest
-    export ANDROID_HOME=${HOME}/android-sdk
-    export PATH=$PATH:${ANDROID_HOME}/cmdline-tools/latest/bin
-    yes | sdkmanager --sdk_root=${ANDROID_HOME} "build-tools;34.0.0"
-    export PATH=$PATH:${ANDROID_HOME}/build-tools/34.0.0
+    - name: Set up dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget unzip openjdk-17-jdk
+        wget https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O cmdline-tools.zip
+        unzip -q cmdline-tools.zip -d cmdline-tools
+        mkdir -p ${HOME}/android-sdk/cmdline-tools
+        mv cmdline-tools ${HOME}/android-sdk/cmdline-tools/latest
+        export ANDROID_HOME=${HOME}/android-sdk
+        export PATH=$PATH:${ANDROID_HOME}/cmdline-tools/latest/bin
+        yes | sdkmanager --sdk_root=${ANDROID_HOME} "build-tools;34.0.0"
+        export PATH=$PATH:${ANDROID_HOME}/build-tools/34.0.0
 
-      - name: Fetch latest release info from Waterfox
-        id: fetch_release
-        run: |
-          api="https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest"
-          tag=$(curl -s $api | jq -r .tag_name)
-          echo "TAG=$tag" >> $GITHUB_OUTPUT
+    - name: Fetch latest release info from Waterfox
+      run: |
+        wget -q https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest -O release.json
+        echo "RELEASE_TAG=$(jq -r .tag_name release.json)" >> $GITHUB_ENV
+        echo "RELEASE_NAME=$(jq -r .name release.json)" >> $GITHUB_ENV
+        echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+        jq -r .body release.json >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
 
-      - name: Check if already built
-        run: |
-          if grep -Fxq "${{ steps.fetch_release.outputs.TAG }}" release.txt; then
-            echo "Already built this version."
-            exit 0
-          fi
+    - name: Check if already built
+      run: |
+        if gh release view "$RELEASE_TAG" &>/dev/null; then
+          echo "Already released. Exiting."
+          exit 0
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download APKs
-        run: |
-          base="https://github.com/BrowserWorks/waterfox-android/releases/download/${{ steps.fetch_release.outputs.TAG }}"
-          wget -O arm64.apk "$base/waterfox-${{ steps.fetch_release.outputs.TAG }}-arm64-v8a-release.apk"
-          wget -O armeabi.apk "$base/waterfox-${{ steps.fetch_release.outputs.TAG }}-armeabi-v7a-release.apk"
+    - name: Download APKs
+      run: |
+        mkdir -p apks
+        wget -O apks/armeabi.apk "https://github.com/BrowserWorks/waterfox-android/releases/download/${RELEASE_TAG}/Waterfox-Android-${RELEASE_TAG}-armeabi-v7a.apk"
+        wget -O apks/arm64.apk "https://github.com/BrowserWorks/waterfox-android/releases/download/${RELEASE_TAG}/Waterfox-Android-${RELEASE_TAG}-arm64-v8a.apk"
 
-      - name: Patch armeabi-v7a
-        run: |
-          chmod +x build.sh
-          ARCH="armeabi-v7a" APK_NAME="armeabi.apk" PATCHED_APK="armeabi_patched.apk" SIGNED_APK="armeabi_signed.apk" ./build.sh
+    - name: Patch armeabi-v7a
+      run: |
+        chmod +x build.sh
+        ARCH=armeabi-v7a APK_NAME=apks/armeabi.apk PATCHED_APK=armeabi-patched.apk ./build.sh
 
-      - name: Patch arm64-v8a
-        run: |
-          chmod +x build.sh
-          ARCH="arm64-v8a" APK_NAME="arm64.apk" PATCHED_APK="arm64_patched.apk" SIGNED_APK="arm64_signed.apk" ./build.sh
+    - name: Patch arm64-v8a
+      run: |
+        chmod +x build.sh
+        ARCH=arm64-v8a APK_NAME=apks/arm64.apk PATCHED_APK=arm64-patched.apk ./build.sh
 
-      - name: Update release.txt
-        run: |
-          echo "${{ steps.fetch_release.outputs.TAG }}" > release.txt
+    - name: Update release.txt
+      run: |
+        echo "${RELEASE_BODY}" > release.txt
 
-      - name: Commit release.txt update
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Update release tag to ${{ steps.fetch_release.outputs.TAG }}"
+    - name: Commit release.txt update
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add release.txt
+        git commit -m "Update release.txt for $RELEASE_TAG"
+        git push
 
-      - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.fetch_release.outputs.TAG }}
-          name: Waterfox AMOLED – ${{ steps.fetch_release.outputs.TAG }}
-          body: |
-            **This build is AMOLED-patched for both architectures**
+    - name: Upload to GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ env.RELEASE_TAG }}
+        name: ${{ env.RELEASE_NAME }}
+        body_path: release.txt
+        files: |
+          armeabi-patched.apk
+          arm64-patched.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            Based on upstream Waterfox release: ${{ steps.fetch_release.outputs.TAG }}
-            - ✅ `armeabi-v7a`
-            - ✅ `arm64-v8a`
-
-            AMOLED patch by karanveers969.
-          files: |
-            armeabi_signed.apk
-            arm64_signed.apk
