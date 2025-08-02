@@ -49,11 +49,13 @@ jobs:
 
     - name: Patch armeabi-v7a
       run: |
-        bash build.sh apks/armeabi.apk patched-armeabi.apk
+        bash build.sh apks/armeabi.apk patched.apk
+        mv patched.apk patched-armeabi.apk
 
     - name: Patch arm64-v8a
       run: |
-        bash build.sh apks/arm64.apk patched-arm64.apk
+        bash build.sh apks/arm64.apk patched.apk
+        mv patched.apk patched-arm64.apk
 
     - name: Setup keystore
       run: |
