@@ -55,9 +55,8 @@ jobs:
           body: |
             AMOLED build of Waterfox Android based on upstream release ${{ github.ref_name }}.
             Credits to BrowserWorks for the original APKs.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
           files: |
             signed-armeabi.apk
             signed-arm64.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
