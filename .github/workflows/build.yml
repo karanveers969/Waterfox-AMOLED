@@ -9,6 +9,7 @@ on:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,6 +19,23 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+
+      - name: Install Android build tools (zipalign, apksigner)
+        run: |
+          sudo apt update
+          sudo apt install -y zipalign lib32stdc++6
+
+          mkdir -p "$HOME/android"
+          cd "$HOME/android"
+
+          curl -O https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip
+          unzip commandlinetools-linux-*.zip -d cmdline-tools
+          mkdir -p $HOME/android/sdk/cmdline-tools/latest
+          mv cmdline-tools/* $HOME/android/sdk/cmdline-tools/latest
+
+          yes | $HOME/android/sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android/sdk "build-tools;34.0.0"
+
+          echo "$HOME/android/sdk/build-tools/34.0.0" >> $GITHUB_PATH
 
       - name: Download armeabi-v7a APK
         run: |
