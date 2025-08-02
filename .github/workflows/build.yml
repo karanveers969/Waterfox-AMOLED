@@ -1,0 +1,75 @@
+name: AMOLED Patch Build
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * *'  # Runs daily at 5:00 AM IST (11:30 PM UTC)
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Set up dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget unzip zip apksigner openjdk-17-jdk
+
+      - name: Fetch latest release info from Waterfox
+        id: fetch_release
+        run: |
+          api="https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest"
+          tag=$(curl -s $api | jq -r .tag_name)
+          echo "TAG=$tag" >> $GITHUB_OUTPUT
+
+      - name: Check if already built
+        run: |
+          if grep -Fxq "${{ steps.fetch_release.outputs.TAG }}" release.txt; then
+            echo "Already built this version."
+            exit 0
+          fi
+
+      - name: Download APKs
+        run: |
+          base="https://github.com/BrowserWorks/waterfox-android/releases/download/${{ steps.fetch_release.outputs.TAG }}"
+          wget -O arm64.apk "$base/waterfox-${{ steps.fetch_release.outputs.TAG }}-arm64-v8a-release.apk"
+          wget -O armeabi.apk "$base/waterfox-${{ steps.fetch_release.outputs.TAG }}-armeabi-v7a-release.apk"
+
+      - name: Patch armeabi-v7a
+        run: |
+          chmod +x build.sh
+          ARCH="armeabi-v7a" APK_NAME="armeabi.apk" PATCHED_APK="armeabi_patched.apk" SIGNED_APK="armeabi_signed.apk" ./build.sh
+
+      - name: Patch arm64-v8a
+        run: |
+          chmod +x build.sh
+          ARCH="arm64-v8a" APK_NAME="arm64.apk" PATCHED_APK="arm64_patched.apk" SIGNED_APK="arm64_signed.apk" ./build.sh
+
+      - name: Update release.txt
+        run: |
+          echo "${{ steps.fetch_release.outputs.TAG }}" > release.txt
+
+      - name: Commit release.txt update
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update release tag to ${{ steps.fetch_release.outputs.TAG }}"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.fetch_release.outputs.TAG }}
+          name: Waterfox AMOLED – ${{ steps.fetch_release.outputs.TAG }}
+          body: |
+            **This build is AMOLED-patched for both architectures**
+
+            Based on upstream Waterfox release: ${{ steps.fetch_release.outputs.TAG }}
+            - ✅ `armeabi-v7a`
+            - ✅ `arm64-v8a`
+
+            AMOLED patch by karanveers969.
+          files: |
+            armeabi_signed.apk
+            arm64_signed.apk
