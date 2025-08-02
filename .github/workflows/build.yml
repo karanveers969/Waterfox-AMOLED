@@ -26,6 +26,18 @@ jobs:
         sdkmanager "build-tools;34.0.0"
         echo "$ANDROID_HOME/build-tools/34.0.0" >> $GITHUB_PATH
 
+    - name: Generate debug keystore
+      run: |
+        keytool -genkeypair -v \
+          -keystore debug.keystore \
+          -alias androiddebugkey \
+          -storepass android \
+          -keypass android \
+          -dname "CN=Android Debug,O=Android,C=US" \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000
+
     - name: Fetch latest release info from Waterfox
       run: |
         wget -q https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest -O release.json
