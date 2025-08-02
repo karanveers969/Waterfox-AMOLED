@@ -11,18 +11,10 @@ jobs:
     - name: Checkout this repo
       uses: actions/checkout@v3
 
-    - name: Set up dependencies
+    - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y wget unzip openjdk-17-jdk
-        wget https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O cmdline-tools.zip
-        unzip -q cmdline-tools.zip -d cmdline-tools
-        mkdir -p ${HOME}/android-sdk/cmdline-tools
-        mv cmdline-tools ${HOME}/android-sdk/cmdline-tools/latest
-        export ANDROID_HOME=${HOME}/android-sdk
-        export PATH=$PATH:${ANDROID_HOME}/cmdline-tools/latest/bin
-        yes | sdkmanager --sdk_root=${ANDROID_HOME} "build-tools;34.0.0"
-        export PATH=$PATH:${ANDROID_HOME}/build-tools/34.0.0
+        sudo apt-get install -y wget jq
 
     - name: Fetch latest release info from Waterfox
       run: |
@@ -53,10 +45,19 @@ jobs:
         chmod +x build.sh
         ARCH=armeabi-v7a APK_NAME=apks/armeabi.apk PATCHED_APK=armeabi-patched.apk ./build.sh
 
+    - name: Sign armeabi-patched.apk
+      run: |
+        echo "${{ secrets.KEYSTORE }}" | base64 -d > keystore.jks
+        apksigner sign --ks keystore.jks --ks-pass pass:${{ secrets.KEYSTORE_PASSPHRASE }} --out armeabi-patched-signed.apk armeabi-patched.apk
+
     - name: Patch arm64-v8a
       run: |
         chmod +x build.sh
         ARCH=arm64-v8a APK_NAME=apks/arm64.apk PATCHED_APK=arm64-patched.apk ./build.sh
+
+    - name: Sign arm64-patched.apk
+      run: |
+        apksigner sign --ks keystore.jks --ks-pass pass:${{ secrets.KEYSTORE_PASSPHRASE }} --out arm64-patched-signed.apk arm64-patched.apk
 
     - name: Update release.txt
       run: |
@@ -77,8 +78,7 @@ jobs:
         name: ${{ env.RELEASE_NAME }}
         body_path: release.txt
         files: |
-          armeabi-patched.apk
-          arm64-patched.apk
+          arm64-patched-signed.apk
+          armeabi-patched-signed.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
