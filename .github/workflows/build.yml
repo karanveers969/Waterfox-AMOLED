@@ -14,7 +14,17 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install -y wget unzip zip apksigner
+        sudo apt install -y wget unzip zip openjdk-17-jdk
+        mkdir -p "$HOME/android-sdk/cmdline-tools"
+        cd "$HOME/android-sdk/cmdline-tools"
+        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+        unzip cmdline-tools.zip
+        mv cmdline-tools latest
+        export ANDROID_HOME=$HOME/android-sdk
+        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+        yes | sdkmanager --licenses
+        sdkmanager "build-tools;34.0.0"
+        echo "$ANDROID_HOME/build-tools/34.0.0" >> $GITHUB_PATH
 
     - name: Fetch latest release info from Waterfox
       run: |
