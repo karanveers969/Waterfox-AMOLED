@@ -33,4 +33,8 @@ Re-signing is required, so if you prefer full control:
 
 - Fork the repo  
 - Replace the signing keys via GitHub Actions secrets  
-- Build your own trusted APK
+- Build your own trusted APK  
+
+## Credits
+
+This project was inspired by [Ironfox-OLEDDark](https://github.com/ArtikusHG/Ironfox-OLEDDark) by ArtikusHG. Many thanks to their clean approach and automation scripts.
