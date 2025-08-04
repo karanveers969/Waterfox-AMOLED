@@ -1,6 +1,7 @@
 # AMOLED-Waterfox
 
-[![Generic badge](https://img.shields.io/badge/arch-arm64_v8a-blue.svg)](https://en.wikipedia.org/wiki/ARM_architecture#AArch64)
+[![Generic badge](https://img.shields.io/badge/armeabi-v7a
+)](https://en.wikipedia.org/wiki/ARM_architecture#AArch64)
 
 This project provides automated AMOLED-patched builds of the official Waterfox Android browser. Since Waterfox (and its upstream forks) do not natively support true AMOLED black themes, this patch applies minor resource changes to improve dark mode for OLED displays.
 
