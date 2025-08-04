@@ -1,4 +1,4 @@
-name: build-and-release
+name: Build and Release AMOLED Waterfox
 
 on:
   workflow_dispatch:
@@ -26,56 +26,38 @@ jobs:
         sdkmanager "build-tools;34.0.0"
         echo "$ANDROID_HOME/build-tools/34.0.0" >> $GITHUB_PATH
 
-    - name: Fetch latest release info from Waterfox
-      run: |
-        wget -q https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest -O release.json
-        RELEASE_TAG=$(jq -r '.tag_name' release.json)
-        echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
-
-    - name: Check if already built
-      run: |
-        if gh release view "$RELEASE_TAG" &>/dev/null; then
-          echo "Release $RELEASE_TAG already exists. Skipping."
-          exit 0
-        fi
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Download APKs
-      run: |
-        mkdir -p apks
-        wget -O apks/armeabi.apk "https://github.com/BrowserWorks/waterfox-android/releases/download/${{ env.RELEASE_TAG }}/waterfox-${{ env.RELEASE_TAG }}-armeabi-v7a-release.apk"
-        wget -O apks/arm64.apk   "https://github.com/BrowserWorks/waterfox-android/releases/download/${{ env.RELEASE_TAG }}/waterfox-${{ env.RELEASE_TAG }}-arm64-v8a-release.apk"
-
-    - name: Patch armeabi-v7a
-      run: |
-        bash build.sh apks/armeabi.apk patched.apk
-        mv patched.apk patched-armeabi.apk
-
-    - name: Patch arm64-v8a
-      run: |
-        bash build.sh apks/arm64.apk patched.apk
-        mv patched.apk patched-arm64.apk
-
-    - name: Setup keystore
+    - name: Set up debug.keystore
       run: |
         echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
 
-    - name: Sign armeabi-v7a APK
+    - name: Fetch latest release tag
       run: |
-        apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out signed-armeabi.apk patched-armeabi.apk
+        wget -q https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest -O release.json
+        TAG=$(jq -r '.tag_name' release.json)
+        echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
 
-    - name: Sign arm64-v8a APK
+    - name: Download official APKs
       run: |
-        apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out signed-arm64.apk patched-arm64.apk
+        mkdir -p apks
+        wget -O apks/armeabi.apk "https://github.com/BrowserWorks/waterfox-android/releases/download/${{ env.RELEASE_TAG }}/waterfox-${{ env.RELEASE_TAG }}-armeabi-v7a-release.apk"
+        wget -O apks/arm64.apk "https://github.com/BrowserWorks/waterfox-android/releases/download/${{ env.RELEASE_TAG }}/waterfox-${{ env.RELEASE_TAG }}-arm64-v8a-release.apk"
 
-    - name: Create Release
+    - name: Patch armeabi-v7a
+      run: |
+        bash build.sh apks/armeabi.apk armeabi-v7a
+
+    - name: Patch arm64-v8a
+      run: |
+        bash build.sh apks/arm64.apk arm64-v8a
+
+    - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ env.RELEASE_TAG }}
         name: AMOLED Waterfox ${{ env.RELEASE_TAG }}
         body: |
-          Auto-generated AMOLED-patched builds for Waterfox Android ${{ env.RELEASE_TAG }}
+          Auto-generated AMOLED-patched builds of Waterfox Android.
         files: |
-          signed-armeabi.apk
-          signed-arm64.apk
+          output/*.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
