@@ -39,8 +39,8 @@ Here’s how AMOLED-Waterfox looks in action:
 ## Security Notes
 
 Only resource files are modified. No core app logic is touched.
-
-Re-signing is required, so if you prefer full control:
+Security should not be a huge concern, since new builds are automated and run every 24 hours (unless you don't trust me).
+Re-signing is required from my side , so if you prefer full control:
 
 - Fork the repo  
 - Replace the signing keys via GitHub Actions secrets  
