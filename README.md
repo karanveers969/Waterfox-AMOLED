@@ -1,5 +1,7 @@
 # AMOLED-Waterfox
 
+[![Generic badge](https://img.shields.io/badge/arch-arm64_v8a-blue.svg)](https://en.wikipedia.org/wiki/ARM_architecture#AArch64)
+
 This project provides automated AMOLED-patched builds of the official Waterfox Android browser. Since Waterfox (and its upstream forks) do not natively support true AMOLED black themes, this patch applies minor resource changes to improve dark mode for OLED displays.
 
 Releases are built automatically when a new version of Waterfox Android is detected.
@@ -20,6 +22,17 @@ Rebuilding the entire browser just to change a few XML and CSS lines is ineffici
 - Rebuilds and re-signs the APK  
 - Publishes the signed APK automatically to GitHub Releases  
 
+## Screenshots
+
+Here’s how AMOLED-Waterfox looks in action:
+
+<p align="center">
+  <img src="screenshots/Screenshot_20250801-2.png" width="300" />
+  <img src="screenshots/Screenshot_20250801-3.png" width="300" />
+  <img src="screenshots/Screenshot_20250801-4.png" width="300" />
+  <img src="screenshots/Screenshot_20250801-5.png" width="300" />
+</p>
+
 ## Usage
 
 - Install manually from the [Releases](https://github.com/karanveers969/Waterfox-AMOLED/releases) page  
@@ -27,7 +40,7 @@ Rebuilding the entire browser just to change a few XML and CSS lines is ineffici
 
 ## Security Notes
 
-Only resource files are modified . No core app logic is touched.
+Only resource files are modified. No core app logic is touched.
 
 Re-signing is required, so if you prefer full control:
 
