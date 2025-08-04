@@ -1,56 +1,50 @@
-# Waterfox-AMOLED
+# AMOLED Waterfox (Auto-Patched)
 
-Auto-patched AMOLED builds of [Waterfox Android](https://github.com/BrowserWorks/waterfox-android), designed for deep blacks and battery savings on OLED screens.
-
-This project fetches official Waterfox Android release APKs, applies an AMOLED dark patch, signs them, and publishes ready-to-install builds.
+This repo automatically patches the official Waterfox Android browser with an AMOLED dark theme. The patch modifies only the UI colors — **no code, no functionality, no extra permissions**.
 
 ---
 
-## 🔧 Features
+### 🔄 What's Going On?
 
-- Based on official Waterfox Android releases
-- Fully automated GitHub Actions workflow
-- AMOLED patching via custom `build.sh`
-- Signed APKs for both architectures:
-  - `armeabi-v7a`
-  - `arm64-v8a`
+Firefox and its forks (including Waterfox) do not provide a true AMOLED theme — so this workflow automates it:
 
----
-
-## 📦 Downloads
-
-Head to the [Releases](https://github.com/karanveers969/Waterfox-AMOLED/releases) section for the latest AMOLED-patched APKs.
-
-Each release includes:
-- `signed-arm64.apk`
-- `signed-armeabi.apk`
+- Downloads official **IronFox**-based Waterfox Android APKs
+- Decompiles them using `apktool`
+- Changes **two XML lines** for deep black UI
+- Rebuilds, signs, and uploads patched `.apk` files
 
 ---
 
-## ⚙️ Automation Workflow
+### 🤔 Why Not Build from Source?
 
-The workflow:
-1. Detects the latest release from the [Waterfox Android repo](https://github.com/BrowserWorks/waterfox-android/releases)
-2. Downloads both architecture APKs
-3. Applies AMOLED patch via [`build.sh`](./build.sh)
-4. Signs APKs using a debug keystore
-5. Publishes signed builds as a GitHub Release
+> _Building the entire browser from source just to change two lines in XML is inefficient._
+
+We patch the official builds directly for reliability and speed.
 
 ---
 
-## 🚀 Usage
+### ✅ Why Trust This?
 
-Just download the appropriate APK for your device and install it.  
-No root required.
+- 🔓 Fully open source — [see `build.sh`](./build.sh) and [workflow](./.github/workflows/build.yml)
+- ✅ No permissions or trackers added
+- ✍️ APK is auto-signed using GitHub Actions secrets
+- 🧾 SHA-256 checksums for each APK are posted
+- 🔁 You can reproduce the build by cloning this repo and running `./build.sh` locally
 
-To contribute or modify the patch:
-- Edit the [`build.sh`](./build.sh) script
+If you're unsure, feel free to **fork this repo and use your own signing keys** (see GitHub Actions secrets). Nothing is hidden.
 
 ---
-## 📜 License
 
-This repository automates patching and redistribution of APKs.  
-All upstream code belongs to the respective authors at [BrowserWorks](https://github.com/BrowserWorks).  
-This project is **not affiliated** with the Waterfox team.
+### 📲 How to Use
+
+- [Download the latest APK](https://github.com/karanveers969/Waterfox-AMOLED/releases)
+- Or import this repo into **[Obtainium](https://github.com/ImranR98/Obtainium)** for automatic update support
+
+---
+
+### 🙏 Credits
+
+Inspired by the original [Ironfox-OLEDDark](https://github.com/Silex/ironfox-oled) by [@Silex](https://github.com/Silex).  
+Big thanks to their transparent and efficient approach.
 
 ---
