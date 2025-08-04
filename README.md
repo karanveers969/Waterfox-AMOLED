@@ -8,22 +8,22 @@ This repo automatically patches the official Waterfox Android browser with an AM
 
 Firefox and its forks (including Waterfox) do not provide a true AMOLED theme — so this workflow automates it:
 
-- Downloads official **IronFox**-based Waterfox Android APKs
+- Downloads official **Waterfox** Android APKs
 - Decompiles them using `apktool`
 - Changes **two XML lines** for deep black UI
 - Rebuilds, signs, and uploads patched `.apk` files
 
 ---
 
-### 🤔 Why Not Build from Source?
+### Why Not Build from Source?
 
 > _Building the entire browser from source just to change two lines in XML is inefficient._
 
-We patch the official builds directly for reliability and speed.
+I decided patch the official builds directly for reliability and speed.
 
 ---
 
-### ✅ Why Trust This?
+###  Why Trust This?
 
 - 🔓 Fully open source — [see `build.sh`](./build.sh) and [workflow](./.github/workflows/build.yml)
 - ✅ No permissions or trackers added
@@ -42,9 +42,9 @@ If you're unsure, feel free to **fork this repo and use your own signing keys** 
 
 ---
 
-### 🙏 Credits
+### Credits
 
-Inspired by the original [Ironfox-OLEDDark](https://github.com/Silex/ironfox-oled) by [@Silex](https://github.com/Silex).  
+Inspired by the original [Ironfox-OLEDDark](https://github.com/Silex/ironfox-oled) 
 Big thanks to their transparent and efficient approach.
 
 ---
