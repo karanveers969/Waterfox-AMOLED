@@ -27,7 +27,7 @@ Rebuilding the entire browser just to change a few XML and CSS lines is ineffici
 
 ## Security Notes
 
-Only resource files are modified (e.g., colors, themes, splash screen assets). No core app logic is touched.
+Only resource files are modified . No core app logic is touched.
 
 Re-signing is required, so if you prefer full control:
 
