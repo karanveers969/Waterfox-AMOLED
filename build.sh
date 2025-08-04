@@ -1,97 +1,49 @@
 #!/bin/bash
 set -e
 
-# === Config ===
-APKTOOL_VER="2.11.1"
-APK_INPUT="$1"
-ARCH="$2"
-APK_PREFIX="waterfox"
-PATCHED_APK="patched.apk"
-SIGNED_APK="patched_signed.apk"
-APKTOOL_BIN="./apktool"
-KEYSTORE_PATH="./debug.keystore"
+arch=$1
+[ -z "$arch" ] && { echo "Usage: $0 <arch>"; exit 1; }
 
-# === Check Args ===
-if [[ -z "$APK_INPUT" || -z "$ARCH" ]]; then
-  echo "Usage: $0 <APK_PATH> <ARCH>"
-  exit 1
-fi
+# === Get latest Waterfox release info ===
+TAG=$(curl -s https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest | jq -r .tag_name)
+APK_NAME="waterfox-${TAG}-${arch}-release.apk"
+APK_URL="https://github.com/BrowserWorks/waterfox-android/releases/download/${TAG}/${APK_NAME}"
 
-# === Dependency Check ===
-for tool in zipalign apksigner jq wget keytool; do
-  command -v $tool >/dev/null 2>&1 || { echo "[-] $tool not found. Install it."; exit 1; }
-done
+echo "[+] Downloading APK: $APK_NAME"
+wget -q "$APK_URL" -O latest.apk
 
-# === Download Apktool ===
-if [ ! -f apktool.jar ]; then
-  echo "[+] Downloading apktool..."
-  wget -q "https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_${APKTOOL_VER}.jar" -O apktool.jar
-  wget -q "https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool"
-  chmod +x apktool
-fi
+# === Set up apktool ===
+echo "[+] Downloading apktool..."
+wget -q https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.11.1.jar -O apktool.jar
+wget -q https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool
+chmod +x apktool*
 
-# === Get Tag from APK name ===
-TAG=$(basename "$APK_INPUT" | grep -oP '[0-9]+\.[0-9]+\.[0-9]+')
-
-# === Prepare ===
-rm -rf patched "$PATCHED_APK" "$SIGNED_APK"
-mkdir -p output
-
-echo "[+] Decompiling $APK_INPUT..."
-$APKTOOL_BIN d "$APK_INPUT" -o patched -f
+echo "[+] Cleaning..."
+rm -rf patched patched_signed.apk
+./apktool d latest.apk -o patched
 rm -rf patched/META-INF
 
-echo "[+] Applying AMOLED patch..."
-# XML Color Overrides
+# === AMOLED Patch ===
+echo "[+] Patching AMOLED colors..."
 sed -i 's/<color name="fx_mobile_layer_color_1">.*/<color name="fx_mobile_layer_color_1">#ff000000<\/color>/g' patched/res/values-night/colors.xml
 sed -i 's/<color name="fx_mobile_layer_color_2">.*/<color name="fx_mobile_layer_color_2">@color\/photonDarkGrey90<\/color>/g' patched/res/values-night/colors.xml
 sed -i 's/<color name="fx_mobile_action_color_secondary">.*/<color name="fx_mobile_action_color_secondary">#ff25242b<\/color>/g' patched/res/values-night/colors.xml
 sed -i 's/<color name="button_material_dark">.*/<color name="button_material_dark">#ff25242b<\/color>/g' patched/res/values/colors.xml
 
-# Smali hex colors
-sed -i 's/ff1c1b22/ff000000/g' patched/smali*/mozilla/components/ui/colors/PhotonColors.smali || true
-sed -i 's/ff2b2a33/ff000000/g' patched/smali*/mozilla/components/ui/colors/PhotonColors.smali || true
+sed -i 's/ff1c1b22/ff000000/g' patched/smali*/mozilla/components/ui/colors/PhotonColors.smali
+sed -i 's/ff2b2a33/ff000000/g' patched/smali*/mozilla/components/ui/colors/PhotonColors.smali
+sed -i 's/ff42414d/ff15141a/g' patched/smali*/mozilla/components/ui/colors/PhotonColors.smali
+sed -i 's/ff52525e/ff25232e/g' patched/smali*/mozilla/components/ui/colors/PhotonColors.smali
+sed -i 's/ff5b5b66/ff2d2b38/g' patched/smali*/mozilla/components/ui/colors/PhotonColors.smali
 
-# Reader View
-sed -i 's/1c1b22/000000/g' patched/assets/extensions/readerview/readerview.css || true
+sed -i 's/1c1b22/000000/g' patched/assets/extensions/readerview/readerview.css
+sed -i 's/eeeeee/e3e3e3/g' patched/assets/extensions/readerview/readerview.css
 
-# Splash Screen
 sed -i 's/mipmap\/ic_launcher_round/drawable\/ic_launcher_foreground/g' patched/res/drawable-v23/splash_screen.xml
 sed -i 's/160\.0dip/200\.0dip/g' patched/res/drawable-v23/splash_screen.xml
 
-# === Change Package Name ===
-echo "[+] Changing package name..."
-sed -i 's/package="org.mozilla.fenix"/package="org.mozilla.fenix.amoled"/g' patched/AndroidManifest.xml
+echo "[+] Rebuilding..."
+./apktool b patched -o patched.apk --use-aapt2
 
-# === Bump version ===
-echo "[+] Bumping version in apktool.yml..."
-sed -i 's/versionCode: [0-9]*/versionCode: 999999/' patched/apktool.yml
-sed -i 's/versionName: .*/versionName: "AMOLED-${TAG}"/' patched/apktool.yml
-
-# === Rebuild ===
-echo "[+] Rebuilding APK..."
-$APKTOOL_BIN b patched -o "$PATCHED_APK" --use-aapt2
-
-# === Align APK ===
-echo "[+] Aligning APK..."
-zipalign -f 4 "$PATCHED_APK" "$SIGNED_APK"
-
-# === Sign APK ===
-if [ ! -f "$KEYSTORE_PATH" ]; then
-  echo "[-] Keystore not found: $KEYSTORE_PATH"
-  exit 1
-fi
-
-echo "[+] Signing APK..."
-apksigner sign \
-  --ks "$KEYSTORE_PATH" \
-  --ks-pass pass:android \
-  --ks-key-alias androiddebugkey \
-  --key-pass pass:android \
-  --v1-signing-enabled true \
-  --v2-signing-enabled true \
-  "$SIGNED_APK"
-
-OUT_NAME="waterfox-${TAG}-${ARCH}-AMOLED.apk"
-mv "$SIGNED_APK" "output/$OUT_NAME"
-echo "[✅] Done: output/$OUT_NAME"
+echo "[+] Aligning..."
+zipalign -f 4 patched.apk patched_signed.apk
