@@ -2,6 +2,8 @@ name: AMOLED Waterfox Build
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # Runs daily at 00:00 UTC
 
 jobs:
   build-and-release:
@@ -11,18 +13,20 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y wget jq zipalign apksigner default-jdk
+          sudo apt install -y wget jq zipalign apksigner default-jdk apktool
 
-      - name: Fetch latest Waterfox release
-        id: fetch
+      - name: Get latest Waterfox release version
+        id: get_version
         run: |
-          TAG=$(curl -s https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest | jq -r .tag_name)
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          VERSION=$(curl -s https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest | jq -r .tag_name)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Check if release already exists
+      - name: Check if already released
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         run: |
-          if gh release view "amoled-${{ steps.fetch.outputs.tag }}" &>/dev/null; then
-            echo "Already released."
+          if gh release view "amoled-${{ env.VERSION }}" &>/dev/null; then
+            echo "Already released. Exiting..."
             exit 0
           fi
         env:
@@ -35,12 +39,12 @@ jobs:
         run: |
           chmod +x ./build.sh
           ./build.sh armeabi-v7a
-          mv patched_signed.apk waterfox-${{ steps.fetch.outputs.tag }}-armeabi-v7a-AMOLED.apk
+          mv patched_signed.apk waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
 
       - name: Patch arm64-v8a
         run: |
           ./build.sh arm64-v8a
-          mv patched_signed.apk waterfox-${{ steps.fetch.outputs.tag }}-arm64-v8a-AMOLED.apk
+          mv patched_signed.apk waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
 
       - name: Generate debug keystore if missing
         run: |
@@ -51,16 +55,16 @@ jobs:
 
       - name: Sign APKs
         run: |
-          apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${{ steps.fetch.outputs.tag }}-armeabi-v7a-AMOLED.apk
-          apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${{ steps.fetch.outputs.tag }}-arm64-v8a-AMOLED.apk
+          apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
+          apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
 
-      - name: Create GitHub release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: amoled-${{ steps.fetch.outputs.tag }}
-          name: AMOLED Waterfox ${{ steps.fetch.outputs.tag }}
+          tag_name: amoled-${{ env.VERSION }}
+          name: AMOLED Waterfox ${{ env.VERSION }}
           body: |
             ✅ Auto-generated AMOLED-patched Waterfox Android builds.
           files: |
-            waterfox-${{ steps.fetch.outputs.tag }}-armeabi-v7a-AMOLED.apk
-            waterfox-${{ steps.fetch.outputs.tag }}-arm64-v8a-AMOLED.apk
+            waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
+            waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
