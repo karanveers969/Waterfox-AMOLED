@@ -25,9 +25,8 @@ jobs:
       - name: Check if already released
         if: ${{ github.event_name != 'workflow_dispatch' }}
         run: |
-          TAG_EXISTS=$(gh release list --limit 100 | grep "amoled-${VERSION}" || true)
-          if [ -n "$TAG_EXISTS" ]; then
-            echo "Release for version $VERSION already exists. Exiting workflow."
+          if gh release view "amoled-${{ env.VERSION }}" &>/dev/null; then
+            echo "Already released. Exiting..."
             exit 0
           fi
         env:
