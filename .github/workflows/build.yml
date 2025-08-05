@@ -22,12 +22,16 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Check if already released
+      - name: Check if release already exists
+        # This step fails the workflow if a release with the same tag already exists.
+        # It is skipped on manual runs (`workflow_dispatch`) to allow for forced re-runs.
         if: ${{ github.event_name != 'workflow_dispatch' }}
         run: |
           if gh release view "amoled-${{ env.VERSION }}" &>/dev/null; then
-            echo "Already released. Exiting..."
-            exit 0
+            echo "Release 'amoled-${{ env.VERSION }}' already exists. Halting workflow."
+            exit 1
+          else
+            echo "Release 'amoled-${{ env.VERSION }}' does not exist. Proceeding."
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -67,4 +71,4 @@ jobs:
             ✅ Auto-generated AMOLED-patched Waterfox Android builds.
           files: |
             waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
-            waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
+            wate
