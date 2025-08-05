@@ -10,11 +10,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Fast Java setup
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      # Core tools
       - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install -y wget jq zipalign apksigner default-jdk apktool
+          sudo apt-get update
+          sudo apt-get install -y wget jq zipalign apksigner apktool
 
+      # Get latest upstream version tag
       - name: Get latest Waterfox release version
         id: get_version
         run: |
@@ -22,34 +31,37 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      # Skip if already released (unless manually triggered)
       - name: Check if release already exists
-        # This step fails the workflow if a release with the same tag already exists.
-        # It is skipped on manual runs (`workflow_dispatch`) to allow for forced re-runs.
         if: ${{ github.event_name != 'workflow_dispatch' }}
         run: |
           if gh release view "amoled-${{ env.VERSION }}" &>/dev/null; then
-            echo "Release 'amoled-${{ env.VERSION }}' already exists. Halting workflow."
-            exit 1
+            echo "Release 'amoled-${{ env.VERSION }}' already exists. Skipping build."
+            exit 0
           else
-            echo "Release 'amoled-${{ env.VERSION }}' does not exist. Proceeding."
+            echo "Release not found. Proceeding with build."
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Repo checkout
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      # Patch & rename armeabi-v7a
       - name: Patch armeabi-v7a
         run: |
           chmod +x ./build.sh
           ./build.sh armeabi-v7a
           mv patched_signed.apk waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
 
+      # Patch & rename arm64-v8a
       - name: Patch arm64-v8a
         run: |
           ./build.sh arm64-v8a
           mv patched_signed.apk waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
 
+      # Generate debug keystore if not already present
       - name: Generate debug keystore if missing
         run: |
           if [ ! -f debug.keystore ]; then
@@ -57,11 +69,13 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
           fi
 
+      # Sign both APKs
       - name: Sign APKs
         run: |
           apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
           apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
 
+      # Upload release to GitHub
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -71,4 +85,4 @@ jobs:
             ✅ Auto-generated AMOLED-patched Waterfox Android builds.
           files: |
             waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
-            wate
+            waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
