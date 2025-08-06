@@ -31,15 +31,15 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      # Skip if already released (unless manually triggered)
+      # Fail workflow if release already exists (only for scheduled runs)
       - name: Check if release already exists
         if: ${{ github.event_name != 'workflow_dispatch' }}
         run: |
           if gh release view "amoled-${{ env.VERSION }}" &>/dev/null; then
-            echo "Release 'amoled-${{ env.VERSION }}' already exists. Skipping build."
-            exit 0
+            echo "::error ::❌ Release 'amoled-${{ env.VERSION }}' already exists. Failing workflow."
+            exit 1
           else
-            echo "Release not found. Proceeding with build."
+            echo "✅ Release not found. Proceeding with build."
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
