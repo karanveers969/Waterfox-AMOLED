@@ -53,13 +53,17 @@ jobs:
         run: |
           chmod +x ./build.sh
           ./build.sh armeabi-v7a
-          mv patched_signed.apk waterfox-${{ env.VERSION%%-* }}-armeabi-v7a-AMOLED.apk
+          BASE_VERSION="${{ env.VERSION }}"
+          BASE_VERSION="${BASE_VERSION%%-*}"
+          mv patched_signed.apk waterfox-${BASE_VERSION}-armeabi-v7a-AMOLED.apk
 
       # Patch & rename arm64-v8a
       - name: Patch arm64-v8a
         run: |
           ./build.sh arm64-v8a
-          mv patched_signed.apk waterfox-${{ env.VERSION%%-* }}-arm64-v8a-AMOLED.apk
+          BASE_VERSION="${{ env.VERSION }}"
+          BASE_VERSION="${BASE_VERSION%%-*}"
+          mv patched_signed.apk waterfox-${BASE_VERSION}-arm64-v8a-AMOLED.apk
 
       # Generate debug keystore if not already present
       - name: Generate debug keystore if missing
@@ -72,8 +76,10 @@ jobs:
       # Sign both APKs
       - name: Sign APKs
         run: |
-          apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${{ env.VERSION%%-* }}-armeabi-v7a-AMOLED.apk
-          apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${{ env.VERSION%%-* }}-arm64-v8a-AMOLED.apk
+          BASE_VERSION="${{ env.VERSION }}"
+          BASE_VERSION="${BASE_VERSION%%-*}"
+          apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${BASE_VERSION}-armeabi-v7a-AMOLED.apk
+          apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${BASE_VERSION}-arm64-v8a-AMOLED.apk
 
       # Upload release to GitHub
       - name: Publish release
@@ -84,5 +90,5 @@ jobs:
           body: |
             ✅ Auto-generated AMOLED-patched Waterfox Android builds.
           files: |
-            waterfox-${{ env.VERSION%%-* }}-armeabi-v7a-AMOLED.apk
-            waterfox-${{ env.VERSION%%-* }}-arm64-v8a-AMOLED.apk
+            waterfox-${BASE_VERSION}-armeabi-v7a-AMOLED.apk
+            waterfox-${BASE_VERSION}-arm64-v8a-AMOLED.apk
