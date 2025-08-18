@@ -3,7 +3,7 @@ name: AMOLED Waterfox Build
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *'  # Runs daily at 00:00 UTC
+    - cron: '0 0 * * *'  # daily 00:00 UTC
 
 jobs:
   build-and-release:
@@ -16,80 +16,106 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
 
-      - name: Install dependencies
+      - name: Install minimal deps
         run: |
+          set -euxo pipefail
           sudo apt-get update
-          sudo apt-get install -y wget jq zipalign apksigner apktool
+          sudo apt-get install -y wget jq apktool
 
-      - name: Get latest Waterfox release version
-        id: get_version
+      - name: Add Android build-tools (apksigner/zipalign) to PATH
         run: |
-          VERSION=$(curl -s https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest | jq -r .tag_name)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          set -euxo pipefail
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}" >> $GITHUB_ENV
+          BT_VER=$(ls -1 "$ANDROID_SDK_ROOT/build-tools" | sort -Vr | head -n 1)
+          echo "$ANDROID_SDK_ROOT/build-tools/$BT_VER" >> $GITHUB_PATH
 
-      - name: Check if release already exists
-        if: ${{ github.event_name != 'workflow_dispatch' }}
+      - name: Get latest Waterfox release + asset URLs
+        id: latest
         run: |
-          if gh release view "amoled-${{ env.VERSION }}" &>/dev/null; then
-            echo "::error ::❌ Release 'amoled-${{ env.VERSION }}' already exists. Failing workflow."
+          set -euo pipefail
+          JSON="$(curl -s https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest)"
+
+          TAG="$(jq -r '.tag_name' <<<"$JSON")"
+          ARMEABI_ASSET="$(jq -r '.assets[] | select(.name | endswith("armeabi-v7a-release.apk")) | .name' <<<"$JSON")"
+          ARM64_ASSET="$(jq -r '.assets[] | select(.name | endswith("arm64-v8a-release.apk")) | .name' <<<"$JSON")"
+
+          ARMEABI_URL="$(jq -r --arg n "$ARMEABI_ASSET" '.assets[] | select(.name==$n) | .browser_download_url' <<<"$JSON")"
+          ARM64_URL="$(jq -r --arg n "$ARM64_ASSET" '.assets[] | select(.name==$n) | .browser_download_url' <<<"$JSON")"
+
+          # Extract clean base version from asset name, e.g. waterfox-1.1.3-armeabi-v7a-release.apk -> 1.1.3
+          BASE_VERSION="$(sed -n 's/^waterfox-\(.*\)-armeabi-v7a-release\.apk$/\1/p' <<<"$ARMEABI_ASSET")"
+
+          if [ -z "$ARMEABI_URL" ] || [ -z "$ARM64_URL" ] || [ -z "$BASE_VERSION" ]; then
+            echo "::error ::Could not find required assets in latest release. JSON was: $JSON"
             exit 1
-          else
-            echo "✅ Release not found. Proceeding with build."
           fi
+
+          {
+            echo "TAG=$TAG"
+            echo "BASE_VERSION=$BASE_VERSION"
+            echo "ARMEABI_URL=$ARMEABI_URL"
+            echo "ARM64_URL=$ARM64_URL"
+          } >> "$GITHUB_ENV"
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release already exists (skip for manual runs)
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "amoled-${{ env.TAG }}" &>/dev/null; then
+            echo "::error ::❌ Release 'amoled-${{ env.TAG }}' already exists. Failing."
+            exit 1
+          else
+            echo "✅ Release not found. Proceeding."
+          fi
 
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # Download, patch & rename armeabi-v7a
-      - name: Patch armeabi-v7a
-        run: |
-          VERSION="${{ env.VERSION }}"
-          APK_URL="https://github.com/BrowserWorks/waterfox-android/releases/download/${VERSION}/waterfox-${VERSION}-armeabi-v7a-release.apk"
-          wget -O armeabi-v7a.apk "$APK_URL"
-          if [ $? -ne 0 ]; then
-            echo "APK download failed for $APK_URL"
-            exit 8
-          fi
-          chmod +x ./build.sh
-          ./build.sh armeabi-v7a.apk
-          mv patched_signed.apk waterfox-${VERSION}-armeabi-v7a-AMOLED.apk
-
-      # Download, patch & rename arm64-v8a
-      - name: Patch arm64-v8a
-        run: |
-          VERSION="${{ env.VERSION }}"
-          APK_URL="https://github.com/BrowserWorks/waterfox-android/releases/download/${VERSION}/waterfox-${VERSION}-arm64-v8a-release.apk"
-          wget -O arm64-v8a.apk "$APK_URL"
-          if [ $? -ne 0 ]; then
-            echo "APK download failed for $APK_URL"
-            exit 8
-          fi
-          chmod +x ./build.sh
-          ./build.sh arm64-v8a.apk
-          mv patched_signed.apk waterfox-${VERSION}-arm64-v8a-AMOLED.apk
-
       - name: Generate debug keystore if missing
         run: |
+          set -euxo pipefail
           if [ ! -f debug.keystore ]; then
             keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android \
               -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
           fi
 
-      - name: Sign APKs
+      - name: Patch armeabi-v7a
         run: |
-          apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
-          apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
+          set -euxo pipefail
+          wget -O armeabi-v7a.apk "${ARMEABI_URL}"
+          chmod +x ./build.sh
+          ./build.sh armeabi-v7a.apk
+          # If build.sh already signs, prefer that; otherwise sign here.
+          OUT="waterfox-${BASE_VERSION}-armeabi-v7a-AMOLED.apk"
+          if [ -f patched_signed.apk ]; then
+            mv patched_signed.apk "$OUT"
+          else
+            apksigner sign --ks debug.keystore --ks-pass pass:android --out "$OUT" patched.apk
+          fi
+
+      - name: Patch arm64-v8a
+        run: |
+          set -euxo pipefail
+          wget -O arm64-v8a.apk "${ARM64_URL}"
+          chmod +x ./build.sh
+          ./build.sh arm64-v8a.apk
+          OUT="waterfox-${BASE_VERSION}-arm64-v8a-AMOLED.apk"
+          if [ -f patched_signed.apk ]; then
+            mv patched_signed.apk "$OUT"
+          else
+            apksigner sign --ks debug.keystore --ks-pass pass:android --out "$OUT" patched.apk
+          fi
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: amoled-${{ env.VERSION }}
-          name: AMOLED Waterfox ${{ env.VERSION }}
+          tag_name: amoled-${{ env.TAG }}
+          name: AMOLED Waterfox ${{ env.TAG }}
           body: |
             ✅ Auto-generated AMOLED-patched Waterfox Android builds.
           files: |
-            waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
-            waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
+            waterfox-${{ env.BASE_VERSION }}-armeabi-v7a-AMOLED.apk
+            waterfox-${{ env.BASE_VERSION }}-arm64-v8a-AMOLED.apk
