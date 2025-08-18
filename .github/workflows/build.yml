@@ -41,7 +41,7 @@ jobs:
             --key-pass pass:$KEY_PASSWORD \
             --ks-key-alias $KEY_ALIAS \
             --out armeabi-v7a-signed.apk \
-            patched_signed.apk
+            patched-aligned.apk # CHANGED: Sign the correctly named input file
         shell: bash
 
       - name: Upload armeabi-v7a
@@ -61,7 +61,7 @@ jobs:
             --key-pass pass:$KEY_PASSWORD \
             --ks-key-alias $KEY_ALIAS \
             --out arm64-v8a-signed.apk \
-            patched_signed.apk
+            patched-aligned.apk # CHANGED: Sign the correctly named input file
         shell: bash
 
       - name: Upload arm64-v8a
