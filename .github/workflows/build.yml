@@ -1,80 +1,82 @@
-name: Build and Release AMOLED Waterfox
+name: AMOLED Waterfox Build
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: '0 0 * * *'  # Runs daily at 00:00 UTC
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
 
     steps:
+      # Fast Java setup
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      # Core tools
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget jq zipalign apksigner apktool
+      # Get latest upstream version tag
+      - name: Get latest Waterfox release version
+        id: get_version
+        run: |
+          VERSION=$(curl -s https://api.github.com/repos/BrowserWorks/waterfox-android/releases/latest | jq -r .tag_name)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      # Fail workflow if release already exists (only for scheduled runs)
+      - name: Check if release already exists
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: |
+          if gh release view "amoled-${{ env.VERSION }}" &>/dev/null; then
+            echo "::error ::❌ Release 'amoled-${{ env.VERSION }}' already exists. Failing workflow."
+            exit 1
+          else
+            echo "✅ Release not found. Proceeding with build."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Repo checkout
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Set up signing key
+      # Patch & rename armeabi-v7a
+      - name: Patch armeabi-v7a
         run: |
-          echo "${{ secrets.SIGNING_KEY }}" | base64 -d > keystore.jks
-          echo "STORE_FILE=keystore.jks" >> $GITHUB_ENV
-          echo "STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
-
-      - name: Build armeabi-v7a
-        run: ./build.sh armeabi-v7a
-
-      - name: Sign armeabi-v7a
+          chmod +x ./build.sh
+          ./build.sh armeabi-v7a
+          mv patched_signed.apk waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
+      # Patch & rename arm64-v8a
+      - name: Patch arm64-v8a
         run: |
-          apksigner sign \
-            --ks $STORE_FILE \
-            --ks-pass pass:$STORE_PASSWORD \
-            --key-pass pass:$KEY_PASSWORD \
-            --ks-key-alias $KEY_ALIAS \
-            --out armeabi-v7a-signed.apk \
-            patched-aligned.apk # CHANGED: Sign the correctly named input file
-        shell: bash
-
-      - name: Upload armeabi-v7a
-        uses: actions/upload-artifact@v4
-        with:
-          name: waterfox-amoled-armeabi-v7a
-          path: armeabi-v7a-signed.apk
-
-      - name: Build arm64-v8a
-        run: ./build.sh arm64-v8a
-
-      - name: Sign arm64-v8a
+          ./build.sh arm64-v8a
+          mv patched_signed.apk waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
+      # Generate debug keystore if not already present
+      - name: Generate debug keystore if missing
         run: |
-          apksigner sign \
-            --ks $STORE_FILE \
-            --ks-pass pass:$STORE_PASSWORD \
-            --key-pass pass:$KEY_PASSWORD \
-            --ks-key-alias $KEY_ALIAS \
-            --out arm64-v8a-signed.apk \
-            patched-aligned.apk # CHANGED: Sign the correctly named input file
-        shell: bash
-
-      - name: Upload arm64-v8a
-        uses: actions/upload-artifact@v4
-        with:
-          name: waterfox-amoled-arm64-v8a
-          path: arm64-v8a-signed.apk
-
-      - name: Release
+          if [ ! -f debug.keystore ]; then
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+          fi
+      # Sign both APKs
+      - name: Sign APKs
+        run: |
+          apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
+          apksigner sign --ks debug.keystore --ks-pass pass:android waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
+      # Upload release to GitHub
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: amoled-${{ env.VERSION }}
+          name: AMOLED Waterfox ${{ env.VERSION }}
+          body: |
+            ✅ Auto-generated AMOLED-patched Waterfox Android builds.
           files: |
-            armeabi-v7a-signed.apk
-            arm64-v8a-signed.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
+            waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
