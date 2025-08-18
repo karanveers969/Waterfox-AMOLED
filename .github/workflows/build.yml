@@ -53,13 +53,13 @@ jobs:
         run: |
           chmod +x ./build.sh
           ./build.sh armeabi-v7a
-          mv patched-aligned.apk waterfox-${{ env.VERSION%%-* }}-armeabi-v7a-AMOLED.apk
+          mv patched_signed.apk waterfox-${{ env.VERSION%%-* }}-armeabi-v7a-AMOLED.apk
 
       # Patch & rename arm64-v8a
       - name: Patch arm64-v8a
         run: |
           ./build.sh arm64-v8a
-          mv patched-aligned.apk waterfox-${{ env.VERSION%%-* }}-arm64-v8a-AMOLED.apk
+          mv patched_signed.apk waterfox-${{ env.VERSION%%-* }}-arm64-v8a-AMOLED.apk
 
       # Generate debug keystore if not already present
       - name: Generate debug keystore if missing
