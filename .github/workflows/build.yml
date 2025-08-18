@@ -48,18 +48,33 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # Patch & rename armeabi-v7a
+      # Download, patch & rename armeabi-v7a
       - name: Patch armeabi-v7a
         run: |
+          VERSION="${{ env.VERSION }}"
+          APK_URL="https://github.com/BrowserWorks/waterfox-android/releases/download/$VERSION/waterfox-$VERSION-armeabi-v7a-release.apk"
+          wget -O armeabi-v7a.apk "$APK_URL"
+          if [ $? -ne 0 ]; then
+            echo "APK download failed for $APK_URL"
+            exit 8
+          fi
           chmod +x ./build.sh
-          ./build.sh armeabi-v7a
-          mv patched_signed.apk waterfox-${{ env.VERSION }}-armeabi-v7a-AMOLED.apk
+          ./build.sh armeabi-v7a.apk
+          mv patched_signed.apk waterfox-${VERSION}-armeabi-v7a-AMOLED.apk
 
-      # Patch & rename arm64-v8a
+      # Download, patch & rename arm64-v8a
       - name: Patch arm64-v8a
         run: |
-          ./build.sh arm64-v8a
-          mv patched_signed.apk waterfox-${{ env.VERSION }}-arm64-v8a-AMOLED.apk
+          VERSION="${{ env.VERSION }}"
+          APK_URL="https://github.com/BrowserWorks/waterfox-android/releases/download/$VERSION/waterfox-$VERSION-arm64-v8a-release.apk"
+          wget -O arm64-v8a.apk "$APK_URL"
+          if [ $? -ne 0 ]; then
+            echo "APK download failed for $APK_URL"
+            exit 8
+          fi
+          chmod +x ./build.sh
+          ./build.sh arm64-v8a.apk
+          mv patched_signed.apk waterfox-${VERSION}-arm64-v8a-AMOLED.apk
 
       # Generate debug keystore if not already present
       - name: Generate debug keystore if missing
