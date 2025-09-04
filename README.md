@@ -1,8 +1,14 @@
 # AMOLED-Waterfox
 
+> **⚠️ Project Archived**  
+> Waterfox has now integrated native AMOLED dark mode support in the main app, which was the original purpose of this project.  
+> Therefore, this repository is no longer maintained and has been archived for reference.
+
+---
+
 This project provides automated AMOLED-patched builds of the official Waterfox Android browser. Since Waterfox (and its upstream forks) do not natively support true AMOLED black themes, this patch applies minor resource changes to improve dark mode for OLED displays.
 
-Releases are built automatically when a new version of Waterfox Android is detected.
+Releases were built automatically when a new version of Waterfox Android was detected.
 
 ## Disclaimer
 
@@ -22,7 +28,7 @@ Rebuilding the entire browser just to change a few XML and CSS lines is ineffici
 
 ## Screenshots
 
-Here’s how AMOLED-Waterfox looks in action:
+Here’s how AMOLED-Waterfox looked in action:
 
 <p align="center">
   <img src="screenshots/Screenshot_20250801-2.png" width="24%" />
@@ -38,9 +44,9 @@ Here’s how AMOLED-Waterfox looks in action:
 
 ## Security Notes
 
-Only resource files are modified. No core app logic is touched.
-Security should not be a huge concern, since new builds are automated and run every 24 hours (unless you don't trust me).
-Re-signing is required from my side , so if you prefer full control:
+Only resource files were modified. No core app logic was touched.  
+Security should not be a huge concern, since new builds were automated and run every 24 hours (unless you don't trust me).  
+Re-signing was required from my side, so if you prefer full control:
 
 - Fork the repo  
 - Replace the signing keys via GitHub Actions secrets  
